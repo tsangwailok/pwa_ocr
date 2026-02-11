@@ -22,19 +22,50 @@ const result = document.getElementById('result');
 
 let captured = false;
 
+const isBackCameraLabel = (label) => /back|rear|environment/i.test(label || '');
+
+const getBackCameraStream = async () => {
+  const initialStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' } }
+  });
+
+  let devices = [];
+  try {
+    devices = await navigator.mediaDevices.enumerateDevices();
+  } catch {
+    return initialStream;
+  }
+
+  const backDevice = devices.find(
+    (device) => device.kind === 'videoinput' && isBackCameraLabel(device.label)
+  );
+
+  if (!backDevice) {
+    return initialStream;
+  }
+
+  const currentTrack = initialStream.getVideoTracks()[0];
+  const currentSettings = currentTrack?.getSettings?.() || {};
+
+  if (currentSettings.deviceId === backDevice.deviceId) {
+    return initialStream;
+  }
+
+  initialStream.getTracks().forEach((track) => track.stop());
+
+  return navigator.mediaDevices.getUserMedia({
+    video: { deviceId: { exact: backDevice.deviceId } }
+  });
+};
+
 // Start camera
 try {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  console.log('Available devices:', devices);
-
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-  console.log('Using stream:', stream);
+  const stream = await getBackCameraStream();
   video.srcObject = stream;
 } catch (err) {
   console.error('Error accessing back camera:', err);
   try {
     const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
-    console.log('Fallback stream:', fallbackStream);
     video.srcObject = fallbackStream;
   } catch (fallbackErr) {
     console.error('Error accessing camera:', fallbackErr);
