@@ -1,0 +1,22 @@
+{
+  "name": "pwa_ocr",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^8.0.0-beta.13"
+  },
+  "overrides": {
+    "vite": "^8.0.0-beta.13"
+  },
+  "dependencies": {
+    "jsfeat": "^0.0.8",
+    "tesseract.js": "^7.0.0",
+    "vite-plugin-pwa": "^1.2.0"
+  }
+}
