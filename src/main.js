@@ -23,19 +23,18 @@ const result = document.getElementById('result');
 let captured = false;
 
 // Start camera
-navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-  .then(stream => {
-    video.srcObject = stream;
-  })
-  .catch(err => {
-    console.error('Error accessing back camera:', err);
-    // Fallback to any camera
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        video.srcObject = stream;
-      })
-      .catch(err => console.error('Error accessing camera:', err));
-  });
+try {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  video.srcObject = stream;
+} catch (err) {
+  console.error('Error accessing back camera:', err);
+  try {
+    const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = fallbackStream;
+  } catch (fallbackErr) {
+    console.error('Error accessing camera:', fallbackErr);
+  }
+}
 
 // Capture image
 captureBtn.addEventListener('click', () => {
