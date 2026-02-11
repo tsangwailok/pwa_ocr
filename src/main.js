@@ -24,12 +24,17 @@ let captured = false;
 
 // Start camera
 try {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  console.log('Available devices:', devices);
+
   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  console.log('Using stream:', stream);
   video.srcObject = stream;
 } catch (err) {
   console.error('Error accessing back camera:', err);
   try {
     const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    console.log('Fallback stream:', fallbackStream);
     video.srcObject = fallbackStream;
   } catch (fallbackErr) {
     console.error('Error accessing camera:', fallbackErr);
