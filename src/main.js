@@ -6,6 +6,7 @@ app.innerHTML = `
   <div>
     <h1>PWA OCR Scanner</h1>
     <video id="video" width="320" height="240" autoplay></video>
+    <button id="swap">Swap Camera</button>
     <button id="capture">Capture</button>
     <canvas id="canvas" width="320" height="240"></canvas>
     <button id="process">Process & OCR</button>
@@ -16,17 +17,19 @@ app.innerHTML = `
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+const swapBtn = document.getElementById('swap');
 const captureBtn = document.getElementById('capture');
 const processBtn = document.getElementById('process');
 const result = document.getElementById('result');
 
 let captured = false;
+let currentFacingMode = 'environment';
 
 const isBackCameraLabel = (label) => /back|rear|environment/i.test(label || '');
 
-const getBackCameraStream = async () => {
+const getPreferredCameraStream = async (facingMode) => {
   const initialStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: 'environment' } }
+    video: { facingMode: { ideal: facingMode } }
   });
 
   let devices = [];
@@ -39,29 +42,43 @@ const getBackCameraStream = async () => {
   const backDevice = devices.find(
     (device) => device.kind === 'videoinput' && isBackCameraLabel(device.label)
   );
+  const frontDevice = devices.find(
+    (device) => device.kind === 'videoinput' && /front|user/i.test(device.label || '')
+  );
 
-  if (!backDevice) {
+  const preferredDevice = facingMode === 'environment' ? backDevice : frontDevice;
+
+  if (!preferredDevice) {
     return initialStream;
   }
 
   const currentTrack = initialStream.getVideoTracks()[0];
   const currentSettings = currentTrack?.getSettings?.() || {};
 
-  if (currentSettings.deviceId === backDevice.deviceId) {
+  if (currentSettings.deviceId === preferredDevice.deviceId) {
     return initialStream;
   }
 
   initialStream.getTracks().forEach((track) => track.stop());
 
   return navigator.mediaDevices.getUserMedia({
-    video: { deviceId: { exact: backDevice.deviceId } }
+    video: { deviceId: { exact: preferredDevice.deviceId } }
   });
+};
+
+const stopStream = (stream) => {
+  if (!stream) return;
+  stream.getTracks().forEach((track) => track.stop());
+};
+
+const startCamera = async (facingMode) => {
+  const stream = await getPreferredCameraStream(facingMode);
+  video.srcObject = stream;
 };
 
 // Start camera
 try {
-  const stream = await getBackCameraStream();
-  video.srcObject = stream;
+  await startCamera(currentFacingMode);
 } catch (err) {
   console.error('Error accessing back camera:', err);
   try {
@@ -71,6 +88,17 @@ try {
     console.error('Error accessing camera:', fallbackErr);
   }
 }
+
+swapBtn.addEventListener('click', async () => {
+  const activeStream = video.srcObject;
+  stopStream(activeStream);
+  currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+  try {
+    await startCamera(currentFacingMode);
+  } catch (err) {
+    console.error('Error swapping camera:', err);
+  }
+});
 
 // Capture image
 captureBtn.addEventListener('click', () => {
