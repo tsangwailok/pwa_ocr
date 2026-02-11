@@ -1,6 +1,6 @@
 # PWA OCR Scanner
 
-A Progressive Web App built with React for scanning documents with camera, edge detection, perspective correction, and OCR support for English, Traditional Chinese, and numbers.
+A Progressive Web App for scanning documents with camera and OCR support for English, Traditional Chinese, and numbers.
 
 ## Features
 
@@ -15,7 +15,25 @@ A Progressive Web App built with React for scanning documents with camera, edge 
 3. Click "Process & OCR" to perform OCR on the captured image.
 4. View the recognized text in the textarea.
 
-Note: Perspective correction is currently disabled due to library compatibility issues. It can be re-implemented with a more suitable library like OpenCV.js in the future.
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## Deploy to GitHub Pages
+
+1. Build the project: `npm run build`
+2. Push the `dist` folder to the `gh-pages` branch or use GitHub Actions for automatic deployment.
+
+The app is built with vanilla JavaScript and can be served as static files on GitHub Pages.
 
 ## Development
 
