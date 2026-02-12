@@ -42,17 +42,20 @@ app.innerHTML = `
     </div>
     
     <div class="result-area" id="resultArea" style="display:none;">
-      <button id="processOCR" class="btn btn-primary btn-large">🔍 Extract Text (OCR)</button>
-      <div id="ocrProgress" style="display:none;" class="progress-bar">
-        <div class="progress-fill"></div>
-        <span class="progress-text">Processing...</span>
-      </div>
-      <textarea id="result" placeholder="Extracted text will appear here..."></textarea>
-      <div class="result-controls">
-        <button id="copyText" class="btn btn-secondary">📋 Copy</button>
-        <button id="downloadImage" class="btn btn-secondary">💾 Download</button>
-        <button id="newScan" class="btn btn-primary">➕ New Scan</button>
-      </div>
+        <div id="imagePreviewWrapper" style="width:100%;display:flex;justify-content:center;">
+          <img id="imagePreview" style="max-width:100%;max-height:220px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);display:none;" alt="Preview" />
+        </div>
+        <button id="processOCR" class="btn btn-primary btn-large">🔍 Extract Text (OCR)</button>
+        <div id="ocrProgress" style="display:none;" class="progress-bar">
+          <div class="progress-fill"></div>
+          <span class="progress-text">Processing...</span>
+        </div>
+        <textarea id="result" placeholder="Extracted text will appear here..."></textarea>
+        <div class="result-controls">
+          <button id="copyText" class="btn btn-secondary">📋 Copy</button>
+          <button id="downloadImage" class="btn btn-secondary">💾 Download</button>
+          <button id="newScan" class="btn btn-primary">➕ New Scan</button>
+        </div>
     </div>
   </div>
 `;
@@ -252,6 +255,9 @@ editCanvas.addEventListener('touchmove', (e) => {
   e.preventDefault();
   if (!isDragging || draggingCorner === null) return;
   const touch = e.touches[0];
+  const imagePreview = document.getElementById('imagePreview');
+  imagePreview.src = editCanvas.toDataURL();
+  imagePreview.style.display = 'block';
   const rect = editCanvas.getBoundingClientRect();
   const x = (touch.clientX - rect.left) * (editCanvas.width / rect.width);
   const y = (touch.clientY - rect.top) * (editCanvas.height / rect.height);
