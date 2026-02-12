@@ -119,11 +119,16 @@ swapBtn.addEventListener('click', async () => {
 
 // Capture image
 captureBtn.addEventListener('click', () => {
+  // Reset canvas to video dimensions
+  canvas.width = 320;
+  canvas.height = 240;
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   capturedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   captured = true;
+  console.log('Image captured, canvas:', canvas.width, canvas.height);
   detectDocumentCorners();
   drawCorners();
+  console.log('Corners:', corners);
 });
 
 function detectDocumentCorners() {
@@ -137,18 +142,31 @@ function detectDocumentCorners() {
 }
 
 function drawCorners() {
-  if (capturedImageData) {
-    ctx.putImageData(capturedImageData, 0, 0);
+  if (!capturedImageData) {
+    console.log('No captured image data');
+    return;
   }
+  ctx.putImageData(capturedImageData, 0, 0);
   ctx.strokeStyle = 'lime';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(corners[0].x, corners[0].y);
-  for (let i = 1; i < corners.length; i++) ctx.lineTo(corners[i].x, corners[i].y);
+  for (let i = 1; i < corners.length; i++) {
+    ctx.lineTo(corners[i].x, corners[i].y);
+  }
   ctx.closePath();
   ctx.stroke();
+  
+  // Draw corner handles
   ctx.fillStyle = 'red';
-  corners.forEach(c => ctx.fillRect(c.x - 5, c.y - 5, 10, 10));
+  corners.forEach((c, i) => {
+    ctx.fillRect(c.x - 6, c.y - 6, 12, 12);
+    ctx.fillStyle = 'blue';
+    ctx.font = '12px Arial';
+    ctx.fillText(i, c.x - 5, c.y - 8);
+    ctx.fillStyle = 'red';
+  });
+  console.log('Corners drawn at:', corners);
 }
 
 let isMouseDown = false;
