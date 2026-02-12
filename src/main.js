@@ -431,14 +431,38 @@ retakeBtn.addEventListener('click', () => {
 processOCRBtn.addEventListener('click', async () => {
   ocrProgress.style.display = 'block';
   processOCRBtn.disabled = true;
-  
   try {
+    // Preprocess: grayscale and binarize for better OCR
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = editCanvas.width;
+    tempCanvas.height = editCanvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(editCanvas, 0, 0);
+    // Grayscale
+    let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      const avg = (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
+      imageData.data[i] = avg;
+      imageData.data[i+1] = avg;
+      imageData.data[i+2] = avg;
+    }
+    tempCtx.putImageData(imageData, 0, 0);
+    // Binarize (simple threshold)
+    const threshold = 180;
+    imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      const v = imageData.data[i] > threshold ? 255 : 0;
+      imageData.data[i] = v;
+      imageData.data[i+1] = v;
+      imageData.data[i+2] = v;
+    }
+    tempCtx.putImageData(imageData, 0, 0);
+    // OCR with both English and Traditional Chinese
     const worker = await createWorker('eng+chi_tra', 1, {
       logger: m => console.log(m)
     });
-    const { data: { text } } = await worker.recognize(editCanvas);
+    const { data: { text } } = await worker.recognize(tempCanvas);
     await worker.terminate();
-    
     result.value = text;
     ocrProgress.style.display = 'none';
     processOCRBtn.disabled = false;
