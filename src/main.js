@@ -4,277 +4,295 @@ import jsfeat from 'jsfeat';
 
 const app = document.querySelector('#app');
 app.innerHTML = `
-  <div>
-    <h1>PWA OCR Scanner</h1>
-    <video id="video" width="320" height="240" autoplay></video>
-    <button id="swap">Swap Camera</button>
-    <button id="capture">Capture</button>
-    <canvas id="canvas" width="320" height="240"></canvas>
-    <div style="margin:1em 0;">
-      <button id="crop">Crop</button>
-      <button id="transform">Transform</button>
-      <button id="export">Export Cropped</button>
+  <div class="app-container">
+    <header>
+      <h1>📄 Document Scanner</h1>
+      <p class="subtitle">Scan, detect, and extract text</p>
+    </header>
+    
+    <div class="scanner-area">
+      <div class="video-container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+      </div>
+      
+      <div class="controls">
+        <button id="swap" class="btn btn-secondary">🔄 Switch Camera</button>
+        <button id="capture" class="btn btn-primary">📸 Capture</button>
+      </div>
     </div>
-    <button id="process">Process & OCR</button>
-    <textarea id="result" rows="10" cols="50"></textarea>
+    
+    <div class="editor-area" id="editorArea" style="display:none;">
+      <div class="canvas-wrapper">
+        <canvas id="editCanvas"></canvas>
+      </div>
+      
+      <div class="editor-controls">
+        <button id="retake" class="btn btn-secondary">↩️ Retake</button>
+        <button id="crop" class="btn btn-primary">✂️ Crop & Correct</button>
+      </div>
+      
+      <div class="filter-controls">
+        <label>Filters:</label>
+        <button id="filterNone" class="btn-filter active">Original</button>
+        <button id="filterGray" class="btn-filter">Grayscale</button>
+        <button id="filterBW" class="btn-filter">Black & White</button>
+        <button id="filterEnhance" class="btn-filter">Enhanced</button>
+      </div>
+    </div>
+    
+    <div class="result-area" id="resultArea" style="display:none;">
+      <button id="processOCR" class="btn btn-primary btn-large">🔍 Extract Text (OCR)</button>
+      <div id="ocrProgress" style="display:none;" class="progress-bar">
+        <div class="progress-fill"></div>
+        <span class="progress-text">Processing...</span>
+      </div>
+      <textarea id="result" placeholder="Extracted text will appear here..."></textarea>
+      <div class="result-controls">
+        <button id="copyText" class="btn btn-secondary">📋 Copy</button>
+        <button id="downloadImage" class="btn btn-secondary">💾 Download</button>
+        <button id="newScan" class="btn btn-primary">➕ New Scan</button>
+      </div>
+    </div>
   </div>
 `;
 
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+const editCanvas = document.getElementById('editCanvas');
+const editCtx = editCanvas.getContext('2d');
+
 const swapBtn = document.getElementById('swap');
 const captureBtn = document.getElementById('capture');
+const retakeBtn = document.getElementById('retake');
 const cropBtn = document.getElementById('crop');
-const transformBtn = document.getElementById('transform');
-const exportBtn = document.getElementById('export');
-const processBtn = document.getElementById('process');
+const processOCRBtn = document.getElementById('processOCR');
+const copyTextBtn = document.getElementById('copyText');
+const downloadImageBtn = document.getElementById('downloadImage');
+const newScanBtn = document.getElementById('newScan');
+
+const filterNoneBtn = document.getElementById('filterNone');
+const filterGrayBtn = document.getElementById('filterGray');
+const filterBWBtn = document.getElementById('filterBW');
+const filterEnhanceBtn = document.getElementById('filterEnhance');
+
+const editorArea = document.getElementById('editorArea');
+const resultArea = document.getElementById('resultArea');
+const ocrProgress = document.getElementById('ocrProgress');
 const result = document.getElementById('result');
 
-let captured = false;
 let currentFacingMode = 'environment';
-let corners = [
-  { x: 40, y: 40 },
-  { x: 280, y: 40 },
-  { x: 280, y: 200 },
-  { x: 40, y: 200 }
-];
+let corners = [];
 let draggingCorner = null;
 let capturedImageData = null;
+let croppedImageData = null;
 
-const isBackCameraLabel = (label) => /back|rear|environment/i.test(label || '');
-
-const getPreferredCameraStream = async (facingMode) => {
-  const initialStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: facingMode } }
-  });
-
-  let devices = [];
+// Camera setup
+async function startCamera(facingMode) {
   try {
-    devices = await navigator.mediaDevices.enumerateDevices();
-  } catch {
-    return initialStream;
-  }
-
-  const backDevice = devices.find(
-    (device) => device.kind === 'videoinput' && isBackCameraLabel(device.label)
-  );
-  const frontDevice = devices.find(
-    (device) => device.kind === 'videoinput' && /front|user/i.test(device.label || '')
-  );
-
-  const preferredDevice = facingMode === 'environment' ? backDevice : frontDevice;
-
-  if (!preferredDevice) {
-    return initialStream;
-  }
-
-  const currentTrack = initialStream.getVideoTracks()[0];
-  const currentSettings = currentTrack?.getSettings?.() || {};
-
-  if (currentSettings.deviceId === preferredDevice.deviceId) {
-    return initialStream;
-  }
-
-  initialStream.getTracks().forEach((track) => track.stop());
-
-  return navigator.mediaDevices.getUserMedia({
-    video: { deviceId: { exact: preferredDevice.deviceId } }
-  });
-};
-
-const stopStream = (stream) => {
-  if (!stream) return;
-  stream.getTracks().forEach((track) => track.stop());
-};
-
-const startCamera = async (facingMode) => {
-  const stream = await getPreferredCameraStream(facingMode);
-  video.srcObject = stream;
-};
-
-// Start camera
-try {
-  await startCamera(currentFacingMode);
-} catch (err) {
-  console.error('Error accessing back camera:', err);
-  try {
-    const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = fallbackStream;
-  } catch (fallbackErr) {
-    console.error('Error accessing camera:', fallbackErr);
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    };
+  } catch (err) {
+    console.error('Camera error:', err);
+    alert('Could not access camera. Please check permissions.');
   }
 }
 
+startCamera(currentFacingMode);
+
+// Swap camera
 swapBtn.addEventListener('click', async () => {
-  const activeStream = video.srcObject;
-  stopStream(activeStream);
-  currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-  try {
-    await startCamera(currentFacingMode);
-  } catch (err) {
-    console.error('Error swapping camera:', err);
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach(track => track.stop());
   }
+  currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+  await startCamera(currentFacingMode);
 });
 
 // Capture image
 captureBtn.addEventListener('click', () => {
-  // Reset canvas to video dimensions
-  canvas.width = 320;
-  canvas.height = 240;
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0);
   capturedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  captured = true;
-  console.log('Image captured, canvas:', canvas.width, canvas.height);
+  
+  // Detect document edges
   detectDocumentCorners();
-  drawCorners();
-  console.log('Corners:', corners);
+  
+  // Setup edit canvas
+  editCanvas.width = canvas.width;
+  editCanvas.height = canvas.height;
+  drawEditCanvas();
+  
+  // Show editor
+  document.querySelector('.scanner-area').style.display = 'none';
+  editorArea.style.display = 'block';
 });
 
+// Detect document corners using edge detection
 function detectDocumentCorners() {
-  // Convert to grayscale and detect edges using Canny algorithm
-  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const gray = new jsfeat.matrix_t(canvas.width, canvas.height, jsfeat.U8_t | jsfeat.C1_t);
+  const imgData = capturedImageData;
+  const w = canvas.width;
+  const h = canvas.height;
+  const gray = new jsfeat.matrix_t(w, h, jsfeat.U8_t | jsfeat.C1_t);
   
-  // Grayscale conversion
+  // Grayscale
   for (let i = 0, j = 0; i < imgData.data.length; i += 4, j++) {
     gray.data[j] = (imgData.data[i] * 0.299 + imgData.data[i + 1] * 0.587 + imgData.data[i + 2] * 0.114) | 0;
   }
   
-  // Canny edge detection
+  // Edge detection
   jsfeat.imgproc.canny(gray, gray, 50, 100);
   
-  // Find contours (simplified: look for edges at image boundaries)
-  const edges = gray.data;
-  const w = canvas.width;
-  const h = canvas.height;
-  
-  let topEdge = h, bottomEdge = 0, leftEdge = w, rightEdge = 0;
-  
-  // Scan for edges
+  // Find boundaries
+  let minX = w, minY = h, maxX = 0, maxY = 0;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      if (edges[y * w + x] > 100) {
-        topEdge = Math.min(topEdge, y);
-        bottomEdge = Math.max(bottomEdge, y);
-        leftEdge = Math.min(leftEdge, x);
-        rightEdge = Math.max(rightEdge, x);
+      if (gray.data[y * w + x] > 100) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
       }
     }
   }
   
-  // Apply margin
-  const margin = 10;
-  topEdge = Math.max(margin, topEdge);
-  leftEdge = Math.max(margin, leftEdge);
-  bottomEdge = Math.min(h - margin, bottomEdge);
-  rightEdge = Math.min(w - margin, rightEdge);
-  
-  // Set detected corners
+  // Set corners with padding
+  const pad = 20;
   corners = [
-    { x: leftEdge, y: topEdge },
-    { x: rightEdge, y: topEdge },
-    { x: rightEdge, y: bottomEdge },
-    { x: leftEdge, y: bottomEdge }
+    { x: Math.max(pad, minX), y: Math.max(pad, minY) },
+    { x: Math.min(w - pad, maxX), y: Math.max(pad, minY) },
+    { x: Math.min(w - pad, maxX), y: Math.min(h - pad, maxY) },
+    { x: Math.max(pad, minX), y: Math.min(h - pad, maxY) }
   ];
-  
-  console.log('Detected corners:', corners);
 }
 
-function drawCorners() {
-  if (!capturedImageData) {
-    console.log('No captured image data');
-    return;
-  }
-  ctx.putImageData(capturedImageData, 0, 0);
-  ctx.strokeStyle = 'lime';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(corners[0].x, corners[0].y);
-  for (let i = 1; i < corners.length; i++) {
-    ctx.lineTo(corners[i].x, corners[i].y);
-  }
-  ctx.closePath();
-  ctx.stroke();
+// Draw edit canvas with corners
+function drawEditCanvas() {
+  editCtx.putImageData(capturedImageData, 0, 0);
+  
+  // Draw border
+  editCtx.strokeStyle = '#4CAF50';
+  editCtx.lineWidth = 3;
+  editCtx.beginPath();
+  editCtx.moveTo(corners[0].x, corners[0].y);
+  for (let i = 1; i < 4; i++) editCtx.lineTo(corners[i].x, corners[i].y);
+  editCtx.closePath();
+  editCtx.stroke();
   
   // Draw corner handles
-  ctx.fillStyle = 'red';
   corners.forEach((c, i) => {
-    ctx.fillRect(c.x - 6, c.y - 6, 12, 12);
-    ctx.fillStyle = 'blue';
-    ctx.font = '12px Arial';
-    ctx.fillText(i, c.x - 5, c.y - 8);
-    ctx.fillStyle = 'red';
+    editCtx.fillStyle = '#ff5722';
+    editCtx.fillRect(c.x - 8, c.y - 8, 16, 16);
+    editCtx.fillStyle = 'white';
+    editCtx.font = '12px bold Arial';
+    editCtx.textAlign = 'center';
+    editCtx.fillText(i + 1, c.x, c.y + 4);
   });
-  console.log('Corners drawn at:', corners);
 }
 
-let isMouseDown = false;
-
-canvas.addEventListener('mousedown', (e) => {
-  if (!captured) return;
-  isMouseDown = true;
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  // Check if clicking a corner
+// Handle corner dragging
+let isDragging = false;
+editCanvas.addEventListener('mousedown', (e) => {
+  const rect = editCanvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (editCanvas.width / rect.width);
+  const y = (e.clientY - rect.top) * (editCanvas.height / rect.height);
+  
   for (let i = 0; i < corners.length; i++) {
-    if (Math.abs(x - corners[i].x) < 10 && Math.abs(y - corners[i].y) < 10) {
+    if (Math.hypot(x - corners[i].x, y - corners[i].y) < 20) {
       draggingCorner = i;
-      return;
+      isDragging = true;
+      break;
     }
   }
 });
 
-canvas.addEventListener('mousemove', (e) => {
-  if (!isMouseDown || !captured) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  
-  if (draggingCorner !== null) {
-    corners[draggingCorner] = { x: Math.max(0, Math.min(x, canvas.width)), y: Math.max(0, Math.min(y, canvas.height)) };
-    drawCorners();
-  }
+editCanvas.addEventListener('mousemove', (e) => {
+  if (!isDragging || draggingCorner === null) return;
+  const rect = editCanvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (editCanvas.width / rect.width);
+  const y = (e.clientY - rect.top) * (editCanvas.height / rect.height);
+  corners[draggingCorner] = {
+    x: Math.max(0, Math.min(x, editCanvas.width)),
+    y: Math.max(0, Math.min(y, editCanvas.height))
+  };
+  drawEditCanvas();
 });
 
-canvas.addEventListener('mouseup', () => {
-  isMouseDown = false;
+editCanvas.addEventListener('mouseup', () => {
+  isDragging = false;
   draggingCorner = null;
 });
 
-cropBtn.addEventListener('click', () => {
-  if (!captured) return;
+// Touch support for mobile
+editCanvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = editCanvas.getBoundingClientRect();
+  const x = (touch.clientX - rect.left) * (editCanvas.width / rect.width);
+  const y = (touch.clientY - rect.top) * (editCanvas.height / rect.height);
   
-  // Perspective correction: transform quadrilateral to rectangle
+  for (let i = 0; i < corners.length; i++) {
+    if (Math.hypot(x - corners[i].x, y - corners[i].y) < 30) {
+      draggingCorner = i;
+      isDragging = true;
+      break;
+    }
+  }
+});
+
+editCanvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!isDragging || draggingCorner === null) return;
+  const touch = e.touches[0];
+  const rect = editCanvas.getBoundingClientRect();
+  const x = (touch.clientX - rect.left) * (editCanvas.width / rect.width);
+  const y = (touch.clientY - rect.top) * (editCanvas.height / rect.height);
+  corners[draggingCorner] = {
+    x: Math.max(0, Math.min(x, editCanvas.width)),
+    y: Math.max(0, Math.min(y, editCanvas.height))
+  };
+  drawEditCanvas();
+});
+
+editCanvas.addEventListener('touchend', () => {
+  isDragging = false;
+  draggingCorner = null;
+});
+
+// Crop with perspective correction
+cropBtn.addEventListener('click', () => {
   const [tl, tr, br, bl] = corners;
   
-  // Calculate output dimensions
   const topWidth = Math.hypot(tr.x - tl.x, tr.y - tl.y);
   const bottomWidth = Math.hypot(br.x - bl.x, br.y - bl.y);
   const leftHeight = Math.hypot(bl.x - tl.x, bl.y - tl.y);
   const rightHeight = Math.hypot(br.x - tr.x, br.y - tr.y);
   
-  const outputWidth = Math.max(topWidth, bottomWidth) | 0;
-  const outputHeight = Math.max(leftHeight, rightHeight) | 0;
+  const outputWidth = Math.round(Math.max(topWidth, bottomWidth));
+  const outputHeight = Math.round(Math.max(leftHeight, rightHeight));
   
-  // Create temp canvas for warped output
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = outputWidth;
   tempCanvas.height = outputHeight;
   const tempCtx = tempCanvas.getContext('2d');
   
-  // Draw and apply perspective using canvas transform
-  const sourceImg = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const sourceImg = editCtx.getImageData(0, 0, editCanvas.width, editCanvas.height);
   const destImg = tempCtx.createImageData(outputWidth, outputHeight);
   
-  // Simple bilinear sampling for perspective correction
+  // Bilinear perspective mapping
   for (let y = 0; y < outputHeight; y++) {
     for (let x = 0; x < outputWidth; x++) {
       const u = x / outputWidth;
       const v = y / outputHeight;
       
-      // Interpolate source coordinates using bilinear mapping
       const srcX = tl.x * (1 - u) * (1 - v) + tr.x * u * (1 - v) + 
                    br.x * u * v + bl.x * (1 - u) * v;
       const srcY = tl.y * (1 - u) * (1 - v) + tr.y * u * (1 - v) + 
@@ -283,57 +301,143 @@ cropBtn.addEventListener('click', () => {
       const sx = Math.round(srcX);
       const sy = Math.round(srcY);
       
-      if (sx >= 0 && sx < canvas.width && sy >= 0 && sy < canvas.height) {
-        const srcIdx = (sy * canvas.width + sx) * 4;
+      if (sx >= 0 && sx < editCanvas.width && sy >= 0 && sy < editCanvas.height) {
+        const srcIdx = (sy * editCanvas.width + sx) * 4;
         const dstIdx = (y * outputWidth + x) * 4;
         destImg.data[dstIdx] = sourceImg.data[srcIdx];
         destImg.data[dstIdx + 1] = sourceImg.data[srcIdx + 1];
         destImg.data[dstIdx + 2] = sourceImg.data[srcIdx + 2];
-        destImg.data[dstIdx + 3] = sourceImg.data[srcIdx + 3];
+        destImg.data[dstIdx + 3] = 255;
       }
     }
   }
   
   tempCtx.putImageData(destImg, 0, 0);
+  editCanvas.width = outputWidth;
+  editCanvas.height = outputHeight;
+  editCtx.drawImage(tempCanvas, 0, 0);
   
-  // Replace main canvas with perspective-corrected image
-  canvas.width = outputWidth;
-  canvas.height = outputHeight;
-  ctx.drawImage(tempCanvas, 0, 0);
+  croppedImageData = editCtx.getImageData(0, 0, outputWidth, outputHeight);
   
-  captured = false;
-  capturedImageData = null;
-  console.log('Perspective correction applied:', outputWidth, 'x', outputHeight);
+  // Show result area
+  editorArea.style.display = 'none';
+  resultArea.style.display = 'block';
 });
 
-transformBtn.addEventListener('click', () => {
-  if (!captured) return;
-  // Example: simple horizontal flip
-  ctx.save();
-  ctx.translate(canvas.width, 0);
-  ctx.scale(-1, 1);
-  ctx.drawImage(canvas, 0, 0);
-  ctx.restore();
+// Filters
+function applyFilter(filter) {
+  if (!croppedImageData) return;
+  
+  const imgData = new ImageData(
+    new Uint8ClampedArray(croppedImageData.data),
+    croppedImageData.width,
+    croppedImageData.height
+  );
+  
+  for (let i = 0; i < imgData.data.length; i += 4) {
+    const r = imgData.data[i];
+    const g = imgData.data[i + 1];
+    const b = imgData.data[i + 2];
+    
+    if (filter === 'gray') {
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = gray;
+    } else if (filter === 'bw') {
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      const bw = gray > 128 ? 255 : 0;
+      imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = bw;
+    } else if (filter === 'enhance') {
+      // Increase contrast
+      const factor = 1.5;
+      imgData.data[i] = Math.min(255, (r - 128) * factor + 128);
+      imgData.data[i + 1] = Math.min(255, (g - 128) * factor + 128);
+      imgData.data[i + 2] = Math.min(255, (b - 128) * factor + 128);
+    }
+  }
+  
+  editCtx.putImageData(imgData, 0, 0);
+  croppedImageData = imgData;
+}
+
+filterNoneBtn.addEventListener('click', () => {
+  document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+  filterNoneBtn.classList.add('active');
+  if (croppedImageData) {
+    editCtx.putImageData(new ImageData(
+      new Uint8ClampedArray(croppedImageData.data),
+      croppedImageData.width,
+      croppedImageData.height
+    ), 0, 0);
+  }
 });
 
-exportBtn.addEventListener('click', () => {
-  if (!captured) return;
-  const dataUrl = canvas.toDataURL('image/png');
-  // Download cropped image
+filterGrayBtn.addEventListener('click', () => {
+  document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+  filterGrayBtn.classList.add('active');
+  applyFilter('gray');
+});
+
+filterBWBtn.addEventListener('click', () => {
+  document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+  filterBWBtn.classList.add('active');
+  applyFilter('bw');
+});
+
+filterEnhanceBtn.addEventListener('click', () => {
+  document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+  filterEnhanceBtn.classList.add('active');
+  applyFilter('enhance');
+});
+
+// Retake
+retakeBtn.addEventListener('click', () => {
+  editorArea.style.display = 'none';
+  document.querySelector('.scanner-area').style.display = 'block';
+});
+
+// OCR
+processOCRBtn.addEventListener('click', async () => {
+  ocrProgress.style.display = 'block';
+  processOCRBtn.disabled = true;
+  
+  try {
+    const worker = await createWorker('eng+chi_tra', 1, {
+      logger: m => console.log(m)
+    });
+    const { data: { text } } = await worker.recognize(editCanvas);
+    await worker.terminate();
+    
+    result.value = text;
+    ocrProgress.style.display = 'none';
+    processOCRBtn.disabled = false;
+  } catch (err) {
+    alert('OCR failed: ' + err.message);
+    ocrProgress.style.display = 'none';
+    processOCRBtn.disabled = false;
+  }
+});
+
+// Copy text
+copyTextBtn.addEventListener('click', () => {
+  result.select();
+  document.execCommand('copy');
+  copyTextBtn.textContent = '✓ Copied!';
+  setTimeout(() => copyTextBtn.textContent = '📋 Copy', 2000);
+});
+
+// Download image
+downloadImageBtn.addEventListener('click', () => {
   const link = document.createElement('a');
-  link.href = dataUrl;
-  link.download = 'cropped.png';
+  link.download = `scan-${Date.now()}.png`;
+  link.href = editCanvas.toDataURL();
   link.click();
 });
 
-// Process and OCR
-  if (!captured) {
-    alert('Please capture an image first.');
-    return;
-  }
-  // Use cropped/transformed canvas for OCR
-  const worker = await createWorker('eng+chi_tra');
-  const { data: { text } } = await worker.recognize(canvas);
-  await worker.terminate();
-  result.value = text;
+// New scan
+newScanBtn.addEventListener('click', () => {
+  resultArea.style.display = 'none';
+  document.querySelector('.scanner-area').style.display = 'block';
+  result.value = '';
+  croppedImageData = null;
+  capturedImageData = null;
 });
