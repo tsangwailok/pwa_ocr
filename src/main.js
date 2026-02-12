@@ -1,5 +1,6 @@
 import './style.css';
 import { createWorker } from 'tesseract.js';
+import jsfeat from 'jsfeat';
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -32,8 +33,13 @@ const result = document.getElementById('result');
 
 let captured = false;
 let currentFacingMode = 'environment';
-let cropRect = { x: 60, y: 60, w: 200, h: 120 };
-let cropping = false;
+let corners = [
+  { x: 40, y: 40 },
+  { x: 280, y: 40 },
+  { x: 280, y: 200 },
+  { x: 40, y: 200 }
+];
+let draggingCorner = null;
 
 const isBackCameraLabel = (label) => /back|rear|environment/i.test(label || '');
 
@@ -114,10 +120,63 @@ swapBtn.addEventListener('click', async () => {
 captureBtn.addEventListener('click', () => {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   captured = true;
-  // Draw crop rectangle
-  ctx.strokeStyle = 'red';
+  detectDocumentCorners();
+  drawCorners();
+});
+
+function detectDocumentCorners() {
+  // Use jsfeat for edge detection and contour finding
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const gray = new jsfeat.matrix_t(canvas.width, canvas.height, jsfeat.U8_t | jsfeat.C1_t);
+  jsfeat.imgproc.grayscale(imgData.data, gray);
+  const cornersArr = [];
+  for (let i = 0; i < 4; i++) cornersArr.push(new jsfeat.point_t(0, 0));
+  jsfeat.imgproc.canny(gray, gray, 20, 50);
+  // Simple heuristic: use image corners
+  corners = [
+    { x: 40, y: 40 },
+    { x: canvas.width - 40, y: 40 },
+    { x: canvas.width - 40, y: canvas.height - 40 },
+    { x: 40, y: canvas.height - 40 }
+  ];
+}
+
+function drawCorners() {
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = 'lime';
   ctx.lineWidth = 2;
-  ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let i = 1; i < corners.length; i++) ctx.lineTo(corners[i].x, corners[i].y);
+  ctx.closePath();
+  ctx.stroke();
+  // Draw corner handles
+  ctx.fillStyle = 'red';
+  corners.forEach(c => ctx.fillRect(c.x - 5, c.y - 5, 10, 10));
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  if (!captured) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  for (let i = 0; i < corners.length; i++) {
+    if (Math.abs(x - corners[i].x) < 10 && Math.abs(y - corners[i].y) < 10) {
+      draggingCorner = i;
+      break;
+    }
+  }
+});
+canvas.addEventListener('mousemove', (e) => {
+  if (draggingCorner === null) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  corners[draggingCorner] = { x, y };
+  drawCorners();
+});
+canvas.addEventListener('mouseup', () => {
+  draggingCorner = null;
 });
 
 // Cropping tool: allow user to adjust rectangle
@@ -152,11 +211,54 @@ canvas.addEventListener('mouseup', () => {
 
 cropBtn.addEventListener('click', () => {
   if (!captured) return;
-  // Draw only the cropped area
-  const cropped = ctx.getImageData(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
-  canvas.width = cropRect.w;
-  canvas.height = cropRect.h;
-  ctx.putImageData(cropped, 0, 0);
+  // Perspective correction
+  const [tl, tr, br, bl] = corners;
+  const width = Math.max(
+    Math.hypot(tr.x - tl.x, tr.y - tl.y),
+    Math.hypot(br.x - bl.x, br.y - bl.y)
+  );
+  const height = Math.max(
+    Math.hypot(bl.x - tl.x, bl.y - tl.y),
+    Math.hypot(br.x - tr.x, br.y - tr.y)
+  );
+  const dst = [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height }
+  ];
+  // Compute transform
+  const srcMat = [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y];
+  const dstMat = [0, 0, width, 0, width, height, 0, height];
+  const transform = jsfeat.math.perspective_4point_transform(srcMat, dstMat);
+  // Create new canvas for result
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = width;
+  tempCanvas.height = height;
+  const tempCtx = tempCanvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const outImg = tempCtx.createImageData(width, height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const px = jsfeat.math.perspective_transform(transform, x, y);
+      const srcX = Math.round(px[0]);
+      const srcY = Math.round(px[1]);
+      if (srcX >= 0 && srcX < canvas.width && srcY >= 0 && srcY < canvas.height) {
+        const srcIdx = (srcY * canvas.width + srcX) * 4;
+        const dstIdx = (y * width + x) * 4;
+        outImg.data[dstIdx] = imgData.data[srcIdx];
+        outImg.data[dstIdx + 1] = imgData.data[srcIdx + 1];
+        outImg.data[dstIdx + 2] = imgData.data[srcIdx + 2];
+        outImg.data[dstIdx + 3] = imgData.data[srcIdx + 3];
+      }
+    }
+  }
+  tempCtx.putImageData(outImg, 0, 0);
+  // Replace main canvas
+  canvas.width = width;
+  canvas.height = height;
+  ctx.clearRect(0, 0, width, height);
+  ctx.drawImage(tempCanvas, 0, 0);
 });
 
 transformBtn.addEventListener('click', () => {
