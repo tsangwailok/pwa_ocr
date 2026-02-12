@@ -132,13 +132,53 @@ captureBtn.addEventListener('click', () => {
 });
 
 function detectDocumentCorners() {
-  const margin = 40;
+  // Convert to grayscale and detect edges using Canny algorithm
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const gray = new jsfeat.matrix_t(canvas.width, canvas.height, jsfeat.U8_t | jsfeat.C1_t);
+  
+  // Grayscale conversion
+  for (let i = 0, j = 0; i < imgData.data.length; i += 4, j++) {
+    gray.data[j] = (imgData.data[i] * 0.299 + imgData.data[i + 1] * 0.587 + imgData.data[i + 2] * 0.114) | 0;
+  }
+  
+  // Canny edge detection
+  jsfeat.imgproc.canny(gray, gray, 50, 100);
+  
+  // Find contours (simplified: look for edges at image boundaries)
+  const edges = gray.data;
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  let topEdge = h, bottomEdge = 0, leftEdge = w, rightEdge = 0;
+  
+  // Scan for edges
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (edges[y * w + x] > 100) {
+        topEdge = Math.min(topEdge, y);
+        bottomEdge = Math.max(bottomEdge, y);
+        leftEdge = Math.min(leftEdge, x);
+        rightEdge = Math.max(rightEdge, x);
+      }
+    }
+  }
+  
+  // Apply margin
+  const margin = 10;
+  topEdge = Math.max(margin, topEdge);
+  leftEdge = Math.max(margin, leftEdge);
+  bottomEdge = Math.min(h - margin, bottomEdge);
+  rightEdge = Math.min(w - margin, rightEdge);
+  
+  // Set detected corners
   corners = [
-    { x: margin, y: margin },
-    { x: canvas.width - margin, y: margin },
-    { x: canvas.width - margin, y: canvas.height - margin },
-    { x: margin, y: canvas.height - margin }
+    { x: leftEdge, y: topEdge },
+    { x: rightEdge, y: topEdge },
+    { x: rightEdge, y: bottomEdge },
+    { x: leftEdge, y: bottomEdge }
   ];
+  
+  console.log('Detected corners:', corners);
 }
 
 function drawCorners() {
@@ -205,25 +245,65 @@ canvas.addEventListener('mouseup', () => {
 
 cropBtn.addEventListener('click', () => {
   if (!captured) return;
-  // Simple rectangular crop from detected corners
-  const minX = Math.min(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
-  const minY = Math.min(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
-  const maxX = Math.max(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
-  const maxY = Math.max(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
   
-  const cropWidth = maxX - minX;
-  const cropHeight = maxY - minY;
+  // Perspective correction: transform quadrilateral to rectangle
+  const [tl, tr, br, bl] = corners;
   
-  // Extract the region
-  const cropped = ctx.getImageData(minX, minY, cropWidth, cropHeight);
+  // Calculate output dimensions
+  const topWidth = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+  const bottomWidth = Math.hypot(br.x - bl.x, br.y - bl.y);
+  const leftHeight = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+  const rightHeight = Math.hypot(br.x - tr.x, br.y - tr.y);
   
-  // Resize canvas and paste cropped data
-  canvas.width = cropWidth;
-  canvas.height = cropHeight;
-  ctx.putImageData(cropped, 0, 0);
+  const outputWidth = Math.max(topWidth, bottomWidth) | 0;
+  const outputHeight = Math.max(leftHeight, rightHeight) | 0;
+  
+  // Create temp canvas for warped output
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = outputWidth;
+  tempCanvas.height = outputHeight;
+  const tempCtx = tempCanvas.getContext('2d');
+  
+  // Draw and apply perspective using canvas transform
+  const sourceImg = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const destImg = tempCtx.createImageData(outputWidth, outputHeight);
+  
+  // Simple bilinear sampling for perspective correction
+  for (let y = 0; y < outputHeight; y++) {
+    for (let x = 0; x < outputWidth; x++) {
+      const u = x / outputWidth;
+      const v = y / outputHeight;
+      
+      // Interpolate source coordinates using bilinear mapping
+      const srcX = tl.x * (1 - u) * (1 - v) + tr.x * u * (1 - v) + 
+                   br.x * u * v + bl.x * (1 - u) * v;
+      const srcY = tl.y * (1 - u) * (1 - v) + tr.y * u * (1 - v) + 
+                   br.y * u * v + bl.y * (1 - u) * v;
+      
+      const sx = Math.round(srcX);
+      const sy = Math.round(srcY);
+      
+      if (sx >= 0 && sx < canvas.width && sy >= 0 && sy < canvas.height) {
+        const srcIdx = (sy * canvas.width + sx) * 4;
+        const dstIdx = (y * outputWidth + x) * 4;
+        destImg.data[dstIdx] = sourceImg.data[srcIdx];
+        destImg.data[dstIdx + 1] = sourceImg.data[srcIdx + 1];
+        destImg.data[dstIdx + 2] = sourceImg.data[srcIdx + 2];
+        destImg.data[dstIdx + 3] = sourceImg.data[srcIdx + 3];
+      }
+    }
+  }
+  
+  tempCtx.putImageData(destImg, 0, 0);
+  
+  // Replace main canvas with perspective-corrected image
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
+  ctx.drawImage(tempCanvas, 0, 0);
   
   captured = false;
   capturedImageData = null;
+  console.log('Perspective correction applied:', outputWidth, 'x', outputHeight);
 });
 
 transformBtn.addEventListener('click', () => {
