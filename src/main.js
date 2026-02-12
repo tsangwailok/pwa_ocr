@@ -335,29 +335,32 @@ cropBtn.addEventListener('click', () => {
   resultArea.style.display = 'block';
   // Show preview image
   const imagePreview = document.getElementById('imagePreview');
+  const previewUrl = editCanvas.toDataURL();
+  console.log('Preview element:', imagePreview);
+  console.log('Preview data URL:', previewUrl);
   if (imagePreview) {
-    imagePreview.src = editCanvas.toDataURL();
+    imagePreview.src = previewUrl;
     imagePreview.style.display = 'block';
     imagePreview.style.visibility = 'visible';
+    imagePreview.style.border = '2px solid #2196F3';
     imagePreview.removeAttribute('hidden');
+  } else {
+    console.warn('imagePreview element not found');
   }
 });
 
 // Filters
 function applyFilter(filter) {
   if (!croppedImageData) return;
-  
   const imgData = new ImageData(
     new Uint8ClampedArray(croppedImageData.data),
     croppedImageData.width,
     croppedImageData.height
   );
-  
   for (let i = 0; i < imgData.data.length; i += 4) {
     const r = imgData.data[i];
     const g = imgData.data[i + 1];
     const b = imgData.data[i + 2];
-    
     if (filter === 'gray') {
       const gray = 0.299 * r + 0.587 * g + 0.114 * b;
       imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = gray;
@@ -373,9 +376,19 @@ function applyFilter(filter) {
       imgData.data[i + 2] = Math.min(255, (b - 128) * factor + 128);
     }
   }
-  
   editCtx.putImageData(imgData, 0, 0);
   croppedImageData = imgData;
+  // Update preview after filter
+  const imagePreview = document.getElementById('imagePreview');
+  const previewUrl = editCanvas.toDataURL();
+  console.log('Preview after filter:', previewUrl);
+  if (imagePreview) {
+    imagePreview.src = previewUrl;
+    imagePreview.style.display = 'block';
+    imagePreview.style.visibility = 'visible';
+    imagePreview.style.border = '2px solid #2196F3';
+    imagePreview.removeAttribute('hidden');
+  }
 }
 
 filterNoneBtn.addEventListener('click', () => {
