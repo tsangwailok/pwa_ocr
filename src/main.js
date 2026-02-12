@@ -9,6 +9,11 @@ app.innerHTML = `
     <button id="swap">Swap Camera</button>
     <button id="capture">Capture</button>
     <canvas id="canvas" width="320" height="240"></canvas>
+    <div style="margin:1em 0;">
+      <button id="crop">Crop</button>
+      <button id="transform">Transform</button>
+      <button id="export">Export Cropped</button>
+    </div>
     <button id="process">Process & OCR</button>
     <textarea id="result" rows="10" cols="50"></textarea>
   </div>
@@ -19,11 +24,16 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const swapBtn = document.getElementById('swap');
 const captureBtn = document.getElementById('capture');
+const cropBtn = document.getElementById('crop');
+const transformBtn = document.getElementById('transform');
+const exportBtn = document.getElementById('export');
 const processBtn = document.getElementById('process');
 const result = document.getElementById('result');
 
 let captured = false;
 let currentFacingMode = 'environment';
+let cropRect = { x: 60, y: 60, w: 200, h: 120 };
+let cropping = false;
 
 const isBackCameraLabel = (label) => /back|rear|environment/i.test(label || '');
 
@@ -104,18 +114,79 @@ swapBtn.addEventListener('click', async () => {
 captureBtn.addEventListener('click', () => {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   captured = true;
+  // Draw crop rectangle
+  ctx.strokeStyle = 'red';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+});
+
+// Cropping tool: allow user to adjust rectangle
+canvas.addEventListener('mousedown', (e) => {
+  if (!captured) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  // Simple hit test
+  if (x > cropRect.x && x < cropRect.x + cropRect.w && y > cropRect.y && y < cropRect.y + cropRect.h) {
+    cropping = true;
+    canvas.dataset.startX = x;
+    canvas.dataset.startY = y;
+  }
+});
+canvas.addEventListener('mousemove', (e) => {
+  if (!cropping) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  // Resize crop rectangle
+  cropRect.w = x - cropRect.x;
+  cropRect.h = y - cropRect.y;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = 'red';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+});
+canvas.addEventListener('mouseup', () => {
+  cropping = false;
+});
+
+cropBtn.addEventListener('click', () => {
+  if (!captured) return;
+  // Draw only the cropped area
+  const cropped = ctx.getImageData(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+  canvas.width = cropRect.w;
+  canvas.height = cropRect.h;
+  ctx.putImageData(cropped, 0, 0);
+});
+
+transformBtn.addEventListener('click', () => {
+  if (!captured) return;
+  // Example: simple horizontal flip
+  ctx.save();
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(canvas, 0, 0);
+  ctx.restore();
+});
+
+exportBtn.addEventListener('click', () => {
+  if (!captured) return;
+  const dataUrl = canvas.toDataURL('image/png');
+  // Download cropped image
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = 'cropped.png';
+  link.click();
 });
 
 // Process and OCR
-processBtn.addEventListener('click', async () => {
   if (!captured) {
     alert('Please capture an image first.');
     return;
   }
-
+  // Use cropped/transformed canvas for OCR
   const worker = await createWorker('eng+chi_tra');
   const { data: { text } } = await worker.recognize(canvas);
   await worker.terminate();
-
   result.value = text;
 });
