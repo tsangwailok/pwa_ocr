@@ -151,110 +151,61 @@ function drawCorners() {
   corners.forEach(c => ctx.fillRect(c.x - 5, c.y - 5, 10, 10));
 }
 
+let isMouseDown = false;
+
 canvas.addEventListener('mousedown', (e) => {
   if (!captured) return;
+  isMouseDown = true;
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
+  // Check if clicking a corner
   for (let i = 0; i < corners.length; i++) {
     if (Math.abs(x - corners[i].x) < 10 && Math.abs(y - corners[i].y) < 10) {
       draggingCorner = i;
-      break;
+      return;
     }
   }
 });
-canvas.addEventListener('mousemove', (e) => {
-  if (draggingCorner === null || !captured) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  corners[draggingCorner] = { x: Math.max(0, Math.min(x, canvas.width)), y: Math.max(0, Math.min(y, canvas.height)) };
-  drawCorners();
-});
-canvas.addEventListener('mouseup', () => {
-  draggingCorner = null;
-});
 
-// Cropping tool: allow user to adjust rectangle
-canvas.addEventListener('mousedown', (e) => {
-  if (!captured) return;
+canvas.addEventListener('mousemove', (e) => {
+  if (!isMouseDown || !captured) return;
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
-  // Simple hit test
-  if (x > cropRect.x && x < cropRect.x + cropRect.w && y > cropRect.y && y < cropRect.y + cropRect.h) {
-    cropping = true;
-    canvas.dataset.startX = x;
-    canvas.dataset.startY = y;
+  
+  if (draggingCorner !== null) {
+    corners[draggingCorner] = { x: Math.max(0, Math.min(x, canvas.width)), y: Math.max(0, Math.min(y, canvas.height)) };
+    drawCorners();
   }
 });
-canvas.addEventListener('mousemove', (e) => {
-  if (!cropping) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  // Resize crop rectangle
-  cropRect.w = x - cropRect.x;
-  cropRect.h = y - cropRect.y;
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = 'red';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
-});
+
 canvas.addEventListener('mouseup', () => {
-  cropping = false;
+  isMouseDown = false;
+  draggingCorner = null;
 });
 
 cropBtn.addEventListener('click', () => {
   if (!captured) return;
-  // Perspective correction
-  const [tl, tr, br, bl] = corners;
-  const width = Math.max(
-    Math.hypot(tr.x - tl.x, tr.y - tl.y),
-    Math.hypot(br.x - bl.x, br.y - bl.y)
-  );
-  const height = Math.max(
-    Math.hypot(bl.x - tl.x, bl.y - tl.y),
-    Math.hypot(br.x - tr.x, br.y - tr.y)
-  );
-  const dst = [
-    { x: 0, y: 0 },
-    { x: width, y: 0 },
-    { x: width, y: height },
-    { x: 0, y: height }
-  ];
-  // Compute transform
-  const srcMat = [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y];
-  const dstMat = [0, 0, width, 0, width, height, 0, height];
-  const transform = jsfeat.math.perspective_4point_transform(srcMat, dstMat);
-  // Create new canvas for result
-  const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = width;
-  tempCanvas.height = height;
-  const tempCtx = tempCanvas.getContext('2d');
-  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const outImg = tempCtx.createImageData(width, height);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const px = jsfeat.math.perspective_transform(transform, x, y);
-      const srcX = Math.round(px[0]);
-      const srcY = Math.round(px[1]);
-      if (srcX >= 0 && srcX < canvas.width && srcY >= 0 && srcY < canvas.height) {
-        const srcIdx = (srcY * canvas.width + srcX) * 4;
-        const dstIdx = (y * width + x) * 4;
-        outImg.data[dstIdx] = imgData.data[srcIdx];
-        outImg.data[dstIdx + 1] = imgData.data[srcIdx + 1];
-        outImg.data[dstIdx + 2] = imgData.data[srcIdx + 2];
-        outImg.data[dstIdx + 3] = imgData.data[srcIdx + 3];
-      }
-    }
-  }
-  tempCtx.putImageData(outImg, 0, 0);
-  // Replace main canvas
-  canvas.width = width;
-  canvas.height = height;
-  ctx.clearRect(0, 0, width, height);
-  ctx.drawImage(tempCanvas, 0, 0);
+  // Simple rectangular crop from detected corners
+  const minX = Math.min(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+  const minY = Math.min(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
+  const maxX = Math.max(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+  const maxY = Math.max(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
+  
+  const cropWidth = maxX - minX;
+  const cropHeight = maxY - minY;
+  
+  // Extract the region
+  const cropped = ctx.getImageData(minX, minY, cropWidth, cropHeight);
+  
+  // Resize canvas and paste cropped data
+  canvas.width = cropWidth;
+  canvas.height = cropHeight;
+  ctx.putImageData(cropped, 0, 0);
+  
+  captured = false;
+  capturedImageData = null;
 });
 
 transformBtn.addEventListener('click', () => {
