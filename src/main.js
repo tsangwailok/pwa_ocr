@@ -40,6 +40,7 @@ let corners = [
   { x: 40, y: 200 }
 ];
 let draggingCorner = null;
+let capturedImageData = null;
 
 const isBackCameraLabel = (label) => /back|rear|environment/i.test(label || '');
 
@@ -119,30 +120,26 @@ swapBtn.addEventListener('click', async () => {
 // Capture image
 captureBtn.addEventListener('click', () => {
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  capturedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   captured = true;
   detectDocumentCorners();
   drawCorners();
 });
 
 function detectDocumentCorners() {
-  // Use jsfeat for edge detection and contour finding
-  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const gray = new jsfeat.matrix_t(canvas.width, canvas.height, jsfeat.U8_t | jsfeat.C1_t);
-  jsfeat.imgproc.grayscale(imgData.data, gray);
-  const cornersArr = [];
-  for (let i = 0; i < 4; i++) cornersArr.push(new jsfeat.point_t(0, 0));
-  jsfeat.imgproc.canny(gray, gray, 20, 50);
-  // Simple heuristic: use image corners
+  const margin = 40;
   corners = [
-    { x: 40, y: 40 },
-    { x: canvas.width - 40, y: 40 },
-    { x: canvas.width - 40, y: canvas.height - 40 },
-    { x: 40, y: canvas.height - 40 }
+    { x: margin, y: margin },
+    { x: canvas.width - margin, y: margin },
+    { x: canvas.width - margin, y: canvas.height - margin },
+    { x: margin, y: canvas.height - margin }
   ];
 }
 
 function drawCorners() {
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  if (capturedImageData) {
+    ctx.putImageData(capturedImageData, 0, 0);
+  }
   ctx.strokeStyle = 'lime';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -150,7 +147,6 @@ function drawCorners() {
   for (let i = 1; i < corners.length; i++) ctx.lineTo(corners[i].x, corners[i].y);
   ctx.closePath();
   ctx.stroke();
-  // Draw corner handles
   ctx.fillStyle = 'red';
   corners.forEach(c => ctx.fillRect(c.x - 5, c.y - 5, 10, 10));
 }
@@ -168,11 +164,11 @@ canvas.addEventListener('mousedown', (e) => {
   }
 });
 canvas.addEventListener('mousemove', (e) => {
-  if (draggingCorner === null) return;
+  if (draggingCorner === null || !captured) return;
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
-  corners[draggingCorner] = { x, y };
+  corners[draggingCorner] = { x: Math.max(0, Math.min(x, canvas.width)), y: Math.max(0, Math.min(y, canvas.height)) };
   drawCorners();
 });
 canvas.addEventListener('mouseup', () => {
