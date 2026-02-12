@@ -122,50 +122,55 @@ swapBtn.addEventListener('click', async () => {
 // Capture image
 captureBtn.addEventListener('click', () => {
   canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  ctx.drawImage(video, 0, 0);
-  capturedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  
-  // Detect document edges
-  detectDocumentCorners();
-  
-  // Setup edit canvas
-  editCanvas.width = canvas.width;
-  editCanvas.height = canvas.height;
-  drawEditCanvas();
-  
-  // Show editor
-  document.querySelector('.scanner-area').style.display = 'none';
-  editorArea.style.display = 'block';
-});
-
-// Detect document corners using edge detection
-function detectDocumentCorners() {
-  const imgData = capturedImageData;
-  const w = canvas.width;
-  const h = canvas.height;
-  const gray = new jsfeat.matrix_t(w, h, jsfeat.U8_t | jsfeat.C1_t);
-  
-  // Grayscale
-  for (let i = 0, j = 0; i < imgData.data.length; i += 4, j++) {
-    gray.data[j] = (imgData.data[i] * 0.299 + imgData.data[i + 1] * 0.587 + imgData.data[i + 2] * 0.114) | 0;
-  }
-  
-  // Edge detection
-  jsfeat.imgproc.canny(gray, gray, 50, 100);
-  
-  // Find boundaries
-  let minX = w, minY = h, maxX = 0, maxY = 0;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (gray.data[y * w + x] > 100) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
+  const [tl, tr, br, bl] = corners;
+  const topWidth = Math.hypot(tr.x - tl.x, tr.y - tl.y);
+  const bottomWidth = Math.hypot(br.x - bl.x, br.y - bl.y);
+  const leftHeight = Math.hypot(bl.x - tl.x, bl.y - tl.y);
+  const rightHeight = Math.hypot(br.x - tr.x, br.y - tr.y);
+  const outputWidth = Math.round(Math.max(topWidth, bottomWidth));
+  const outputHeight = Math.round(Math.max(leftHeight, rightHeight));
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = outputWidth;
+  tempCanvas.height = outputHeight;
+  const tempCtx = tempCanvas.getContext('2d');
+  const sourceImg = editCtx.getImageData(0, 0, editCanvas.width, editCanvas.height);
+  const destImg = tempCtx.createImageData(outputWidth, outputHeight);
+  // Bilinear perspective mapping
+  for (let y = 0; y < outputHeight; y++) {
+    for (let x = 0; x < outputWidth; x++) {
+      const u = x / outputWidth;
+      const v = y / outputHeight;
+      const srcX = tl.x * (1 - u) * (1 - v) + tr.x * u * (1 - v) + br.x * u * v + bl.x * (1 - u) * v;
+      const srcY = tl.y * (1 - u) * (1 - v) + tr.y * u * (1 - v) + br.y * u * v + bl.y * (1 - u) * v;
+      const sx = Math.round(srcX);
+      const sy = Math.round(srcY);
+      if (sx >= 0 && sx < editCanvas.width && sy >= 0 && sy < editCanvas.height) {
+        const srcIdx = (sy * editCanvas.width + sx) * 4;
+        const dstIdx = (y * outputWidth + x) * 4;
+        destImg.data[dstIdx] = sourceImg.data[srcIdx];
+        destImg.data[dstIdx + 1] = sourceImg.data[srcIdx + 1];
+        destImg.data[dstIdx + 2] = sourceImg.data[srcIdx + 2];
+        destImg.data[dstIdx + 3] = 255;
       }
     }
   }
+  tempCtx.putImageData(destImg, 0, 0);
+  editCanvas.width = outputWidth;
+  editCanvas.height = outputHeight;
+  editCtx.drawImage(tempCanvas, 0, 0);
+  croppedImageData = editCtx.getImageData(0, 0, outputWidth, outputHeight);
+  // Show preview image
+  const imagePreview = document.getElementById('imagePreview');
+  imagePreview.src = editCanvas.toDataURL();
+  imagePreview.style.display = 'block';
+  // Show result area
+  editorArea.style.display = 'none';
+  resultArea.style.display = 'block';
+  // Always update preview when result area is shown
+  setTimeout(() => {
+    imagePreview.src = editCanvas.toDataURL();
+    imagePreview.style.display = 'block';
+  }, 100);
   
   // Set corners with padding
   const pad = 20;
