@@ -333,6 +333,14 @@ cropBtn.addEventListener('click', () => {
   // Show result area
   editorArea.style.display = 'none';
   resultArea.style.display = 'block';
+  // Show preview image
+  const imagePreview = document.getElementById('imagePreview');
+  if (imagePreview) {
+    imagePreview.src = editCanvas.toDataURL();
+    imagePreview.style.display = 'block';
+    imagePreview.style.visibility = 'visible';
+    imagePreview.removeAttribute('hidden');
+  }
 });
 
 // Filters
