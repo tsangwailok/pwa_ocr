@@ -492,8 +492,16 @@ downloadImageBtn.addEventListener('click', () => {
 // New scan
 newScanBtn.addEventListener('click', () => {
   resultArea.style.display = 'none';
+  editorArea.style.display = 'none';
   document.querySelector('.scanner-area').style.display = 'block';
   result.value = '';
   croppedImageData = null;
   capturedImageData = null;
+  // Clear edit canvas
+  editCtx.clearRect(0, 0, editCanvas.width, editCanvas.height);
+  // Hide preview image if present
+  const previewImg = document.getElementById('imagePreview');
+  if (previewImg) previewImg.style.display = 'none';
+  // Restart camera
+  startCamera(currentFacingMode);
 });
