@@ -160,7 +160,7 @@ video, #canvas {
 
 @media (max-width: 640px) {
   .result-area {
-    max-height: 70vh;
+    max-height: calc(100vh - 180px); /* Adjust for heater + padding */
     padding-bottom: 8.5rem;
   }
   .result-controls {
@@ -171,8 +171,9 @@ video, #canvas {
     background: var(--bg-light);
     box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
     z-index: 10;
-    padding: 0.75rem 0;
+    padding: 0.75rem 1rem;
     margin-top: 0;
+    box-sizing: border-box;
   }
   .result-area textarea {
     min-height: 120px;
@@ -181,9 +182,9 @@ video, #canvas {
 
 @media (max-width: 640px) {
   .editor-area {
-    max-height: 70vh;
+    max-height: calc(100vh - 120px); /* Adjust for header */
     overflow-y: auto;
-    padding-bottom: 8.5rem;
+    padding-bottom: 15rem; /* Large padding to ensure scroll clears fixed controls */
   }
   .editor-controls {
     position: fixed;
@@ -193,9 +194,22 @@ video, #canvas {
     background: var(--bg-light);
     box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
     z-index: 10;
-    padding: 0.75rem 0;
+    padding: 0.75rem 1rem;
     margin-top: 0;
     justify-content: center;
+    box-sizing: border-box;
+  }
+  
+  /* Filter controls need to float above the bottom buttons */
+  .filter-controls {
+    position: fixed;
+    left: 0;
+    bottom: 120px; /* Position above editor-controls */
+    width: 100vw;
+    z-index: 9;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 0;
+    box-shadow: 0 -2px 6px rgba(0,0,0,0.05);
   }
 }
 
