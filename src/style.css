@@ -224,24 +224,30 @@ video, #canvas {
     display: flex;
     flex-direction: column;
     height: 100%;
-    overflow: hidden; /* Prevent scrolling, fit to screen */
+    overflow: hidden;
+    padding: 1rem !important; /* Restore padding to match scanner */
+    background: var(--bg-light);
   }
 
-  /* Make canvas wrapper behave like video container */
+  /* Make canvas wrapper behave like video container, but flex to fit */
   .editor-area .canvas-wrapper {
-    flex: 1; /* Fill available space */
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     background: #000;
     overflow: hidden;
-    margin: 0;
-    border-radius: 0;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    border-radius: 12px; /* Restore rounded corners */
     position: relative;
-    padding-bottom: 140px; /* Reserve space for controls */
+    /* We don't need huge padding bottom if we float controls over it properly 
+       or if we want the image to "contain" itself within the available space 
+       minus controls */
   }
   
-  /* Image fits within wrapper, maintaining aspect ratio */
+  /* Image fits within wrapper */
   #editCanvas {
     max-width: 100%;
     max-height: 100%;
@@ -251,9 +257,9 @@ video, #canvas {
     display: block;
   }
 
-  /* FIXED CONTROLS */
+  /* CONTROLS - Fixed to bottom of screen */
   .editor-controls {
-    position: absolute; /* Absolute within editor-area */
+    position: fixed;
     left: 0;
     bottom: 0;
     width: 100%;
@@ -265,7 +271,7 @@ video, #canvas {
   }
 
   .filter-controls {
-    position: absolute; /* Absolute within editor-area */
+    position: fixed;
     left: 0;
     bottom: 74px; /* Above editor controls */
     width: 100%;
@@ -276,6 +282,11 @@ video, #canvas {
     overflow-x: auto;
     justify-content: flex-start;
     -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Add margins to wrapper so image doesn't get covered by controls */
+  .editor-area .canvas-wrapper {
+    margin-bottom: 120px; /* Push wrapper up so bottom isn't covered by controls */
   }
   
   .filter-controls::-webkit-scrollbar {
