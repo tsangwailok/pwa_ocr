@@ -181,71 +181,92 @@ video, #canvas {
 }
 
 @media (max-width: 640px) {
-  .editor-area {
-    /* Make the editor area take up the full available height and be scrollable */
-    height: calc(100dvh - 80px); /* Subtract header height */
-    overflow-y: auto; /* Enable vertical scrolling */
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  /* Make the app container a flex column to handle full height correctly */
+  body, #app, .app-container {
+    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Prevent body scroll, handle per-section */
+  }
+
+  header {
+    flex: 0 0 auto; /* Header takes natural height */
+    z-index: 30;
+    position: relative;
+  }
+
+  /* Both scanner and editor areas should fill remaining space */
+  .scanner-area, .editor-area, .result-area {
+    flex: 1 1 auto;
+    overflow-y: auto; /* Scroll strictly within this area */
+    display: block;
+    height: auto;
+    max-height: none; /* Remove legacy constraints */
+    position: relative;
     padding: 0;
     margin: 0;
-    position: relative;
-    display: block; /* Remove flex constraint to allow scrolling */
   }
 
-  /* The image container should allow the image to grow vertically */
+  /* Scanner specifics */
+  .scanner-area {
+    display: flex;
+    flex-direction: column;
+  }
+  .scanner-area .video-container {
+    flex: 1;
+    border-radius: 0;
+  }
+
+  /* EDITOR AREA SCROLLING FIX */
   .editor-area .canvas-wrapper {
-    display: block; /* Default block layout */
+    display: block;
     background: #000;
-    overflow: visible; /* Allow content to overflow if needed */
+    overflow: visible;
     margin: 0;
     border-radius: 0;
-    min-height: 100%; /* Ensure it fills at least the screen */
-    /* Ensure space for fixed controls at bottom */
-    padding-bottom: 160px; 
+    min-height: 100%;
+    padding-bottom: 180px; /* Space for controls */
+  }
+  
+  /* FORCE CANVAS SCALING */
+  #editCanvas {
+    display: block;
+    width: 100% !important;
+    height: auto !important;
+    object-fit: contain;
   }
 
-  /* Editor controls fixed to the viewport bottom */
+  /* FIXED CONTROLS */
   .editor-controls {
-    position: fixed; /* Fixed to viewport, not scroll container */
+    position: fixed;
     left: 0;
     bottom: 0;
     width: 100%;
-    z-index: 20;
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(5px);
+    z-index: 50;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.98);
     border-top: 1px solid rgba(0,0,0,0.1);
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
   }
 
-  /* Filter controls fixed above editor controls */
   .filter-controls {
-    position: fixed; /* Fixed to viewport */
+    position: fixed;
     left: 0;
-    bottom: 70px; /* Just above the editor buttons */
+    bottom: 74px; /* Above editor controls */
     width: 100%;
-    z-index: 19;
+    z-index: 49;
     padding: 8px 0;
     background: transparent;
     box-shadow: none;
     overflow-x: auto;
     justify-content: flex-start;
-    white-space: nowrap;
     -webkit-overflow-scrolling: touch;
   }
   
-  /* Make filters scrollable horizontally if many */
   .filter-controls::-webkit-scrollbar {
     display: none;
-  }
-
-  /* Allow the canvas to be its natural height (scrollable) */
-  #editCanvas {
-    width: 100% !important; /* Full width */
-    height: auto !important; /* Natural height based on aspect ratio */
-    max-width: none;
-    max-height: none;
-    object-fit: contain;
-    display: block;
   }
 }
 
