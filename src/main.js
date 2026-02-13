@@ -9,29 +9,30 @@ app.innerHTML = `
       <h1>📄 Document Scanner</h1>
       <p class="subtitle">Scan, detect, and extract text</p>
     </header>
-    
+    <!-- Text input for overlay -->
+    <div class="overlay-input-container" style="margin-bottom: 10px;">
+      <input id="overlayTextInput" type="text" placeholder="Enter overlay text..." style="width: 100%; padding: 8px; font-size: 1rem; border-radius: 6px; border: 1px solid #ccc;" />
+    </div>
     <div class="scanner-area">
-      <div class="video-container">
+      <div class="video-container" style="position:relative;">
         <video id="video" autoplay playsinline></video>
         <canvas id="canvas"></canvas>
+        <!-- Overlay text -->
+        <div id="overlayTextDisplay" style="position:absolute;top:8px;left:8px;color:#fff;background:rgba(0,0,0,0.5);padding:4px 10px;border-radius:6px;font-size:1.1rem;pointer-events:none;max-width:80%;white-space:pre-wrap;z-index:10;display:none;"></div>
       </div>
-      
       <div class="controls">
         <button id="swap" class="btn btn-secondary">🔄 Switch Camera</button>
         <button id="capture" class="btn btn-primary">📸 Capture</button>
       </div>
     </div>
-    
     <div class="editor-area" id="editorArea" style="display:none;">
       <div class="canvas-wrapper">
         <canvas id="editCanvas"></canvas>
       </div>
-      
       <div class="editor-controls">
         <button id="retake" class="btn btn-secondary">↩️ Retake</button>
         <button id="crop" class="btn btn-primary">✂️ Crop & Correct</button>
       </div>
-      
       <div class="filter-controls">
         <label>Filters:</label>
         <button id="filterNone" class="btn-filter active">Original</button>
@@ -40,7 +41,6 @@ app.innerHTML = `
         <button id="filterEnhance" class="btn-filter">Enhanced</button>
       </div>
     </div>
-    
     <div class="result-area" id="resultArea" style="display:none;">
         <div id="imagePreviewWrapper" style="width:100%;display:flex;justify-content:center;">
           <img id="imagePreview" style="max-width:100%;max-height:220px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);display:none;" alt="Preview" />
@@ -66,6 +66,7 @@ const ctx = canvas.getContext('2d');
 const editCanvas = document.getElementById('editCanvas');
 const editCtx = editCanvas.getContext('2d');
 
+
 const swapBtn = document.getElementById('swap');
 const captureBtn = document.getElementById('capture');
 const retakeBtn = document.getElementById('retake');
@@ -74,6 +75,8 @@ const processOCRBtn = document.getElementById('processOCR');
 const copyTextBtn = document.getElementById('copyText');
 const downloadImageBtn = document.getElementById('downloadImage');
 const newScanBtn = document.getElementById('newScan');
+const overlayTextInput = document.getElementById('overlayTextInput');
+const overlayTextDisplay = document.getElementById('overlayTextDisplay');
 
 const filterNoneBtn = document.getElementById('filterNone');
 const filterGrayBtn = document.getElementById('filterGray');
@@ -84,6 +87,21 @@ const editorArea = document.getElementById('editorArea');
 const resultArea = document.getElementById('resultArea');
 const ocrProgress = document.getElementById('ocrProgress');
 const result = document.getElementById('result');
+// Overlay text input logic
+if (overlayTextInput && overlayTextDisplay) {
+  overlayTextInput.addEventListener('input', () => {
+    const val = overlayTextInput.value;
+    if (val.trim() !== '') {
+      overlayTextDisplay.textContent = val;
+      overlayTextDisplay.style.display = 'block';
+    } else {
+      overlayTextDisplay.textContent = '';
+      overlayTextDisplay.style.display = 'none';
+    }
+  });
+  // On load, hide overlay
+  overlayTextDisplay.style.display = 'none';
+}
 
 let currentFacingMode = 'environment';
 let corners = [];
