@@ -182,33 +182,31 @@ video, #canvas {
 
 @media (max-width: 640px) {
   .editor-area {
-    /* Make the editor area take up the full available height */
+    /* Make the editor area take up the full available height and be scrollable */
     height: calc(100dvh - 80px); /* Subtract header height */
-    display: flex;
-    flex-direction: column;
-    overflow: hidden; /* Prevent body scroll */
+    overflow-y: auto; /* Enable vertical scrolling */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     padding: 0;
     margin: 0;
     position: relative;
+    display: block; /* Remove flex constraint to allow scrolling */
   }
 
-  /* The image container should take available space but allow image to scale down to fit */
+  /* The image container should allow the image to grow vertically */
   .editor-area .canvas-wrapper {
-    flex: 1;
-    display: flex;
-    align-items: center; /* Center image vertically */
-    justify-content: center;
+    display: block; /* Default block layout */
     background: #000;
-    overflow: hidden;
+    overflow: visible; /* Allow content to overflow if needed */
     margin: 0;
     border-radius: 0;
-    /* Ensure space for controls at bottom */
+    min-height: 100%; /* Ensure it fills at least the screen */
+    /* Ensure space for fixed controls at bottom */
     padding-bottom: 160px; 
   }
 
-  /* Editor controls fixed at bottom */
+  /* Editor controls fixed to the viewport bottom */
   .editor-controls {
-    position: absolute;
+    position: fixed; /* Fixed to viewport, not scroll container */
     left: 0;
     bottom: 0;
     width: 100%;
@@ -219,9 +217,9 @@ video, #canvas {
     border-top: 1px solid rgba(0,0,0,0.1);
   }
 
-  /* Filter controls above default controls */
+  /* Filter controls fixed above editor controls */
   .filter-controls {
-    position: absolute;
+    position: fixed; /* Fixed to viewport */
     left: 0;
     bottom: 70px; /* Just above the editor buttons */
     width: 100%;
@@ -230,7 +228,7 @@ video, #canvas {
     background: transparent;
     box-shadow: none;
     overflow-x: auto;
-    justify-content: flex-start; /* Allow horizontal scroll if needed */
+    justify-content: flex-start;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
   }
@@ -240,13 +238,14 @@ video, #canvas {
     display: none;
   }
 
-  /* Force the canvas to fit within the wrapper bounds */
+  /* Allow the canvas to be its natural height (scrollable) */
   #editCanvas {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto !important; /* Override global style */
-    height: auto !important; /* Override global aspect ratio constraint */
+    width: 100% !important; /* Full width */
+    height: auto !important; /* Natural height based on aspect ratio */
+    max-width: none;
+    max-height: none;
     object-fit: contain;
+    display: block;
   }
 }
 
