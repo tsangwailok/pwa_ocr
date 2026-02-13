@@ -9,11 +9,11 @@ app.innerHTML = `
       <h1>📄 Document Scanner</h1>
       <p class="subtitle">Scan, detect, and extract text</p>
     </header>
-    <!-- Text input for overlay -->
-    <div class="overlay-input-container" style="margin-bottom: 10px;">
-      <input id="overlayTextInput" type="text" placeholder="Enter overlay text..." style="width: 100%; padding: 8px; font-size: 1rem; border-radius: 6px; border: 1px solid #ccc;" />
-    </div>
     <div class="scanner-area">
+      <!-- Text input for overlay -->
+      <div class="overlay-input-container" style="margin-bottom: 10px;">
+        <input id="overlayTextInput" type="text" placeholder="Enter overlay text (e.g. Date, Name)..." style="width: 100%; padding: 8px; font-size: 1rem; border-radius: 6px; border: 1px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" />
+      </div>
       <div class="video-container" style="position:relative;">
         <video id="video" autoplay playsinline></video>
         <canvas id="canvas"></canvas>
