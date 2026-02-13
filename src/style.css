@@ -219,28 +219,41 @@ video, #canvas {
     border-radius: 0;
   }
 
-  /* EDITOR AREA SCROLLING FIX */
+  /* EDITOR AREA */
+  .editor-area {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden; /* Prevent scrolling, fit to screen */
+  }
+
+  /* Make canvas wrapper behave like video container */
   .editor-area .canvas-wrapper {
-    display: block;
+    flex: 1; /* Fill available space */
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: #000;
-    overflow: visible;
+    overflow: hidden;
     margin: 0;
     border-radius: 0;
-    min-height: 100%;
-    padding-bottom: 180px; /* Space for controls */
+    position: relative;
+    padding-bottom: 140px; /* Reserve space for controls */
   }
   
-  /* FORCE CANVAS SCALING */
+  /* Image fits within wrapper, maintaining aspect ratio */
   #editCanvas {
-    display: block;
-    width: 100% !important;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto !important;
     height: auto !important;
     object-fit: contain;
+    display: block;
   }
 
   /* FIXED CONTROLS */
   .editor-controls {
-    position: fixed;
+    position: absolute; /* Absolute within editor-area */
     left: 0;
     bottom: 0;
     width: 100%;
@@ -252,7 +265,7 @@ video, #canvas {
   }
 
   .filter-controls {
-    position: fixed;
+    position: absolute; /* Absolute within editor-area */
     left: 0;
     bottom: 74px; /* Above editor controls */
     width: 100%;
