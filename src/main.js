@@ -10,19 +10,17 @@ app.innerHTML = `
       <p class="subtitle">Scan, detect, and extract text</p>
     </header>
     <div class="scanner-area">
-      <!-- Text input for overlay -->
-      <div class="overlay-input-container" style="margin-bottom: 10px;">
-        <input id="overlayTextInput" type="text" placeholder="Enter overlay text (e.g. Date, Name)..." style="width: 100%; padding: 8px; font-size: 1rem; border-radius: 6px; border: 1px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" />
-      </div>
       <div class="video-container" style="position:relative;">
         <video id="video" autoplay playsinline></video>
         <canvas id="canvas"></canvas>
         <!-- Overlay text -->
         <div id="overlayTextDisplay" style="position:absolute;top:8px;left:8px;color:#fff;background:rgba(0,0,0,0.5);padding:4px 10px;border-radius:6px;font-size:1.1rem;pointer-events:none;max-width:80%;white-space:pre-wrap;z-index:10;display:none;"></div>
       </div>
-      <div class="controls">
-        <button id="swap" class="btn btn-secondary">🔄 Switch Camera</button>
-        <button id="capture" class="btn btn-primary">📸 Capture</button>
+      <div class="controls" style="flex-wrap: wrap; gap: 10px;">
+        <!-- Text input for overlay -->
+        <input id="overlayTextInput" type="text" placeholder="Overlay text..." style="flex: 1 1 100%; padding: 10px; font-size: 1rem; border-radius: 8px; border: 1px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 5px;" />
+        <button id="swap" class="btn btn-secondary" style="flex: 1;">🔄 Switch</button>
+        <button id="capture" class="btn btn-primary" style="flex: 2;">📸 Capture</button>
       </div>
     </div>
     <div class="editor-area" id="editorArea" style="display:none;">
