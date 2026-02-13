@@ -1,3 +1,12 @@
+/* Overlay input container for camera overlay text */
+.overlay-input-container {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto 12px auto;
+  padding: 0 1rem;
+  display: block;
+  z-index: 20;
+}
 :root {
   --primary-color: #4CAF50;
   --secondary-color: #2196F3;
